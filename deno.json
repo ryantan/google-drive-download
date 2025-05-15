@@ -1,0 +1,10 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-import --allow-read --allow-write --allow-net --allow-run --allow-env --env=./.env --watch src/main.ts",
+    "start": "deno run --allow-import --allow-read --allow-write --allow-net --allow-run --allow-env --env=./.env src/main.ts"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "npm:google-auth-library": "npm:google-auth-library@9.15.1"
+  }
+}

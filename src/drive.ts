@@ -1,7 +1,8 @@
-import { google } from "npm:googleapis";
+import { drive_v3, google } from "npm:googleapis";
 import { oauth2Client } from "./auth.ts";
 import { ensureDir, exists } from "https://deno.land/std/fs/mod.ts";
 import { Readable } from "node:stream";
+import { GaxiosResponse } from "npm:gaxios@6.7.1";
 
 // Function to list all folders in Google Drive
 export async function listFolders(folderId?: string | undefined) {
@@ -35,18 +36,44 @@ export const listFiles = async (
   folderId: string,
 ): Promise<File[] | undefined> => {
   const drive = google.drive({ version: "v3", auth: oauth2Client });
-  const res = await drive.files.list({
-    // q: `'${folderId}' in parents and mimeType='image/jpeg'`, // You can change mimeType for other formats
-    q: `'${folderId}' in parents`, // You can change mimeType for other formats
-    fields: "files(id, name, size, properties, imageMediaMetadata)",
-  });
 
-  const files = res.data.files;
-  if (!files) {
+  const allFiles: drive_v3.Schema$File[] = [];
+
+  let nextPageToken: string | undefined = undefined;
+
+  // Maximum 50 pages, to prevent runaway process.
+  for (let i = 0; i < 50; i++) {
+    const res: GaxiosResponse<drive_v3.Schema$FileList> = await drive.files
+      .list({
+        // Use ` and mimeType='image/jpeg'` if you want to filter by mime type.
+        q: `'${folderId}' in parents and trashed=false`,
+        fields:
+          "nextPageToken, files(id, name, size, properties, imageMediaMetadata)",
+        pageSize: 100,
+        pageToken: nextPageToken,
+      });
+
+    const data = res.data;
+    // console.log({ data });
+
+    const files = data.files;
+    if (!files) {
+      console.error(`Could not get files on page ${i + 1}, aborting.`);
+      break;
+    }
+    allFiles.push(...files);
+
+    if (!data.nextPageToken) {
+      break;
+    }
+
+    nextPageToken = data.nextPageToken;
+  }
+  if (!allFiles) {
     return;
   }
   // console.log({ files });
-  return files as unknown as File[];
+  return allFiles as unknown as File[];
 };
 
 export async function streamToFile(
@@ -67,6 +94,7 @@ export async function streamToFile(
     throw error;
   } finally {
     try {
+      // Guessing someone is closing this automatically.
       file.close();
     } catch (err) {
       if ((err as { name: string })?.name === "BadResource") {

@@ -79,64 +79,6 @@ export async function streamToFile(
   }
 }
 
-async function pipeNodeStreamToFile(
-  nodeStream: Readable,
-  denoFilePath: string,
-): Promise<void> {
-  const denoFile = await Deno.open(denoFilePath, { create: true, write: true });
-
-  // try {
-  const writableStream = denoFile.writable;
-  const writer = writableStream.getWriter();
-  await writer.ready;
-
-  const close = async () => {
-    await writer.close();
-    denoFile.close();
-  };
-
-  return new Promise((resolve, reject) => {
-    nodeStream.on("data", async (chunk) => {
-      console.error("[pipeNodeStreamToFile] on data");
-      try {
-        await writer.write(chunk);
-      } catch (err) {
-        await close();
-        reject(err);
-      }
-    });
-
-    nodeStream.on("end", async () => {
-      console.error("[pipeNodeStreamToFile] on end");
-      try {
-        await close();
-        resolve();
-      } catch (err) {
-        reject(err);
-      }
-    });
-
-    nodeStream.on("error", async (err) => {
-      console.error(
-        "[pipeNodeStreamToFile] Error reading from Node.js stream:",
-        err,
-      );
-      try {
-        await writer.abort(err);
-        denoFile.close();
-        reject(err);
-      } catch (closeErr) {
-        reject(closeErr);
-      }
-    });
-  });
-  // } catch (err) {
-  //   console.error("Error writing to Deno file:", err);
-  //   denoFile.close();
-  //   throw err;
-  // }
-}
-
 export const downloadFiles = async (path: string, files: File[]) => {
   if (!files) {
     return;
